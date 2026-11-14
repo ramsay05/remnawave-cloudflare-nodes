@@ -1,13 +1,10 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/hteppl/remnawave-cloudflare-nodes/master/.github/images/logo.webp" alt="remnawave-cloudflare-nodes" width="800px">
+  <img src="https://raw.githubusercontent.com/ramsay05/remnawave-cloudflare-nodes/master/.github/images/logo.webp" alt="remnawave-cloudflare-nodes" width="800px">
 </p>
 
 ## remnawave-cloudflare-nodes
 
 <p align="left">
-  <a href="https://github.com/hteppl/remnawave-cloudflare-nodes/releases/"><img src="https://img.shields.io/github/v/release/hteppl/remnawave-cloudflare-nodes.svg" alt="Release"></a>
-  <a href="https://hub.docker.com/r/hteppl/remnawave-cloudflare-nodes/"><img src="https://img.shields.io/badge/DockerHub-remnawave--cloudflare--nodes-blue" alt="DockerHub"></a>
-  <a href="https://github.com/hteppl/remnawave-cloudflare-nodes/actions"><img src="https://img.shields.io/github/actions/workflow/status/hteppl/remnawave-cloudflare-nodes/dockerhub-publish.yaml" alt="Build"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.12-blue.svg" alt="Python 3.12"></a>
   <a href="https://opensource.org/licenses/GPL-3.0"><img src="https://img.shields.io/badge/license-GPLv3-green.svg" alt="License: GPL v3"></a>
 </p>
@@ -18,6 +15,8 @@ English | [Русский](README.ru.md)
 > See the [Migration Guide](docs/MIGRATION.md).
 
 Automatically manage Cloudflare DNS records based on Remnawave (https://docs.rw) node health status.
+
+Fork of [hteppl/remnawave-cloudflare-nodes](https://github.com/hteppl/remnawave-cloudflare-nodes) with API compatibility fixes and local Docker builds.
 
 ## Features
 
@@ -222,78 +221,97 @@ Both formats can be mixed within the same zone or across different zones.
 
 ## Installation
 
-### Docker (recommended)
+### Docker: build locally on your server (recommended)
 
-1. Create the docker-compose.yml:
+You need Git, Docker Engine and the Docker Compose plugin on a Linux server.
+Check that `git --version`, `docker --version` and `docker compose version` work.
+Docker installation: https://docs.docker.com/engine/install/.
 
-```yaml
-services:
-  remnawave-cloudflare-nodes:
-    image: hteppl/remnawave-cloudflare-nodes:latest
-    container_name: remnawave-cloudflare-nodes
-    restart: unless-stopped
-    env_file:
-      - .env
-    volumes:
-      - ./config.yml:/app/config.yml
-      - ./logs:/app/logs
-    networks:
-      - remnawave-cloudflare-nodes
-
-networks:
-  remnawave-cloudflare-nodes:
-    name: remnawave-cloudflare-nodes
-    driver: bridge
-```
-
-2. Create and configure your environment file:
+1. Clone this fork:
 
 ```bash
-cp .env.example .env
-nano .env  # or use your preferred editor
-```
-
-3. Start the container:
-
-```bash
-docker compose up -d && docker compose logs -f
-```
-
-### Manual Installation
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/hteppl/remnawave-cloudflare-nodes.git
+git clone https://github.com/ramsay05/remnawave-cloudflare-nodes.git
 cd remnawave-cloudflare-nodes
 ```
 
-2. Create a virtual environment (recommended):
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# or
-.venv\Scripts\activate     # Windows
-```
-
-3. Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-4. Create and configure your environment file:
+2. Create the configuration files before starting Compose:
 
 ```bash
 cp .env.example .env
+cp config.example.yml config.yml
+cp hosts.example.yml hosts.yml
+nano .env
+nano config.yml
+nano hosts.yml
 ```
 
-5. Run the application:
+In `.env`, set `REMNAWAVE_API_URL` to the panel URL without `/api`,
+`REMNAWAVE_API_KEY`, and `CLOUDFLARE_API_TOKEN`. The Cloudflare token needs
+**Zone / DNS / Edit** and **Zone / Zone / Read** for your managed zones.
+Replace the domains and IPs in `config.yml` with your own values; see the
+configuration examples above. Keep `proxied: false` for direct node connections.
+
+Host synchronization is disabled by default (`DISABLE_UNREACHABLE_HOSTS=false`).
+To enable it, replace the placeholder UUIDs in `hosts.yml` with the UUIDs of the
+hosts to manage, then set `DISABLE_UNREACHABLE_HOSTS=true`. An absent or empty
+host list means **all hosts whose address matches a managed DNS name** are managed.
+The `hosts.yml` file must exist for the Compose bind mount even when sync is disabled.
+
+3. Build and start:
 
 ```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 -f
+```
+
+The included `docker-compose.yml` uses `build: .` and
+`image: remnawave-cloudflare-nodes:local`. Docker builds the application from this
+checkout using the included Dockerfile. No Docker Hub account or GitHub Actions
+setup is required; the first build needs Internet access for the Python base image
+and dependencies. Press Ctrl+C to exit log viewing; the container keeps running.
+
+`.env`, `config.yml` and `hosts.yml` are ignored by Git. Keep your real tokens and
+configuration on the server. The configuration and `logs/` are bind-mounted and
+persist when the container is recreated. The optional HTTP API is disabled by
+default, and the supplied Compose file does not publish host ports.
+
+### Updating a local Docker installation
+
+Run from the cloned repository:
+
+```bash
+git pull --ff-only
+docker compose up -d --build
+docker compose logs --tail=100
+```
+
+Do not copy the example files over your configured files during updates.
+`docker compose pull` alone does not rebuild this local application image.
+If migrating from the upstream Docker Hub image, stop the old deployment with
+`docker compose down` in its directory first, then copy its configuration to this
+checkout. Only run one monitor for the same managed DNS names.
+
+To stop this deployment:
+
+```bash
+docker compose down
+```
+
+### Run without Docker (Python 3.12+)
+
+Clone this fork and prepare all three configuration files as described above, then:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 python -m src
 ```
+
+On Windows, use `python -m venv .venv` and activate it in PowerShell with
+`.\.venv\Scripts\Activate.ps1`. This starts the program in the foreground;
+Docker Compose provides the restart policy for the recommended deployment.
 
 ## How It Works
 
@@ -303,7 +321,6 @@ python -m src
 2. **Health Evaluation** - Based on node status, determines which nodes are healthy:
     - Node must be connected (`is_connected = true`)
     - Node must not be disabled (`is_disabled = false`)
-    - Node must have Xray installed (`xray_version` is not null)
 
 3. **DNS Synchronization** - For each configured zone, matches each entry's `address` to node health status, then:
     - Adds DNS A records for IPs whose nodes are healthy

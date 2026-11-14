@@ -1,13 +1,10 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/hteppl/remnawave-cloudflare-nodes/master/.github/images/logo.webp" alt="remnawave-cloudflare-nodes" width="800px">
+  <img src="https://raw.githubusercontent.com/ramsay05/remnawave-cloudflare-nodes/master/.github/images/logo.webp" alt="remnawave-cloudflare-nodes" width="800px">
 </p>
 
 ## remnawave-cloudflare-nodes
 
 <p align="left">
-  <a href="https://github.com/hteppl/remnawave-cloudflare-nodes/releases/"><img src="https://img.shields.io/github/v/release/hteppl/remnawave-cloudflare-nodes.svg" alt="Release"></a>
-  <a href="https://hub.docker.com/r/hteppl/remnawave-cloudflare-nodes/"><img src="https://img.shields.io/badge/DockerHub-remnawave--cloudflare--nodes-blue" alt="DockerHub"></a>
-  <a href="https://github.com/hteppl/remnawave-cloudflare-nodes/actions"><img src="https://img.shields.io/github/actions/workflow/status/hteppl/remnawave-cloudflare-nodes/dockerhub-publish.yaml" alt="Build"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.12-blue.svg" alt="Python 3.12"></a>
   <a href="https://opensource.org/licenses/GPL-3.0"><img src="https://img.shields.io/badge/license-GPLv3-green.svg" alt="License: GPL v3"></a>
 </p>
@@ -20,6 +17,8 @@
 Сервис для автоматического управления DNS-записями Cloudflare в зависимости от состояния нод
 Remnawave (https://docs.rw).
 
+Форк [hteppl/remnawave-cloudflare-nodes](https://github.com/hteppl/remnawave-cloudflare-nodes) с исправлениями совместимости API и локальной сборкой Docker.
+
 ## Возможности
 
 - **Мониторинг нод** - Отслеживание состояния нод через Remnawave API
@@ -30,7 +29,7 @@ Remnawave (https://docs.rw).
 - **HTTP API** - Управление конфигурацией в реальном времени через защищенный REST API
 - **Tailscale / Альтернативные адреса** - Маппинг публичных DNS IP на внутренние адреса нод (Tailscale, VPN, NAT)
 - **Гибкая настройка** - Настраиваемые интервалы проверок
-- **Docker** - Готовый образ для быстрого развертывания
+- **Docker** - Локальная сборка образа из кода форка через Docker Compose
 
 ## Требования
 
@@ -218,57 +217,98 @@ zones:
 
 ## Установка
 
-### Docker (рекомендуется)
+### Docker: локальная сборка на сервере (рекомендуется)
 
-1. Создайте `docker-compose.yml`:
+На Linux-сервере нужны Git, Docker Engine и плагин Docker Compose.
+Проверьте команды `git --version`, `docker --version` и `docker compose version`.
+Установка Docker: https://docs.docker.com/engine/install/.
 
-```yaml
-services:
-  remnawave-cloudflare-nodes:
-    image: hteppl/remnawave-cloudflare-nodes:latest
-    container_name: remnawave-cloudflare-nodes
-    restart: unless-stopped
-    env_file:
-      - .env
-    volumes:
-      - ./config.yml:/app/config.yml
-      - ./logs:/app/logs
-    networks:
-      - remnawave-cloudflare-nodes
-
-networks:
-  remnawave-cloudflare-nodes:
-    name: remnawave-cloudflare-nodes
-    driver: bridge
-```
-
-2. Настройте `.env`:
+1. Скачайте этот форк:
 
 ```bash
-cp .env.example .env
-nano .env
-```
-
-3. Запустите:
-
-```bash
-docker compose up -d && docker compose logs -f
-```
-
-### Ручная установка
-
-```bash
-git clone https://github.com/hteppl/remnawave-cloudflare-nodes.git
+git clone https://github.com/ramsay05/remnawave-cloudflare-nodes.git
 cd remnawave-cloudflare-nodes
+```
 
-python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\activate   # Windows
+2. Создайте файлы конфигурации до запуска Compose:
 
-pip install -r requirements.txt
+```bash
 cp .env.example .env
+cp config.example.yml config.yml
+cp hosts.example.yml hosts.yml
+nano .env
+nano config.yml
+nano hosts.yml
+```
+
+В `.env` заполните `REMNAWAVE_API_URL` — адрес панели без `/api`,
+`REMNAWAVE_API_KEY` и `CLOUDFLARE_API_TOKEN`. Токену Cloudflare нужны права
+**Zone / DNS / Edit** и **Zone / Zone / Read** для управляемых зон.
+В `config.yml` замените домены и IP своими значениями по примерам выше.
+Для прямого подключения к нодам оставьте `proxied: false`.
+
+Синхронизация хостов по умолчанию выключена (`DISABLE_UNREACHABLE_HOSTS=false`).
+Чтобы включить её, замените примеры UUID в `hosts.yml` реальными UUID нужных
+хостов и установите `DISABLE_UNREACHABLE_HOSTS=true`. Отсутствующий или пустой
+список означает управление **всеми хостами, адрес которых совпадает с управляемым DNS-именем**.
+Файл `hosts.yml` должен существовать для монтирования в Compose даже при выключенной синхронизации.
+
+3. Соберите образ и запустите контейнер:
+
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 -f
+```
+
+В готовом `docker-compose.yml` уже указаны `build: .` и
+`image: remnawave-cloudflare-nodes:local`. Docker собирает приложение из кода
+этой копии репозитория по включённому Dockerfile. Аккаунт Docker Hub и настройка
+GitHub Actions не нужны; для первой сборки нужен доступ в Интернет для скачивания
+базового образа Python и зависимостей. Выход из просмотра логов — Ctrl+C;
+контейнер продолжит работать в фоне.
+
+`.env`, `config.yml` и `hosts.yml` исключены из Git. Храните реальные токены и
+конфигурацию на сервере. Файлы настроек и каталог `logs/` подключены как bind mounts
+и сохраняются при пересоздании контейнера. HTTP API по умолчанию выключен;
+готовый Compose не публикует порты на сервере.
+
+### Обновление локальной Docker-установки
+
+Выполните в каталоге скачанного репозитория:
+
+```bash
+git pull --ff-only
+docker compose up -d --build
+docker compose logs --tail=100
+```
+
+При обновлении не копируйте примеры поверх своих файлов настроек.
+Одного `docker compose pull` недостаточно: локальный образ нужно пересобрать.
+Если переходите с образа автора из Docker Hub, сначала остановите старую установку
+командой `docker compose down` в её каталоге, затем перенесите её настройки
+в эту копию репозитория. Для одних DNS-имён должен работать только один монитор.
+
+Остановка этой установки:
+
+```bash
+docker compose down
+```
+
+### Запуск без Docker (Python 3.12+)
+
+Скачайте форк и подготовьте все три файла настроек по инструкции выше, затем:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 python -m src
 ```
+
+На Windows создайте окружение командой `python -m venv .venv` и активируйте
+в PowerShell: `.\.venv\Scripts\Activate.ps1`. Программа работает в текущем
+терминале; автоматический перезапуск предусмотрен в рекомендованной установке через Compose.
 
 ## Принцип работы
 
@@ -277,7 +317,6 @@ python -m src
 2. **Проверка состояния** - Нода считается рабочей, если:
     - `is_connected = true`
     - `is_disabled = false`
-    - `xray_version` не пустой
 
 3. **Синхронизация DNS** - Для каждой зоны сопоставляет `address` каждой записи со статусом ноды, затем:
     - Добавляет A-записи для IP, чьи ноды работают
