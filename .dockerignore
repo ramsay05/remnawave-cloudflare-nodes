@@ -25,6 +25,10 @@ logs/
 *.log
 
 # Environment
+.installer-backups/
+.installer-*/
+config.yml
+hosts.yml
 .env
 .env.local
 

@@ -221,7 +221,55 @@ Both formats can be mixed within the same zone or across different zones.
 
 ## Installation
 
-### Docker: build locally on your server (recommended)
+### Interactive installation (recommended)
+
+Run on your Linux server in an interactive SSH terminal. The wizard prompts are in Russian:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ramsay05/remnawave-cloudflare-nodes/master/install.sh -o install-remnawave.sh
+bash install-remnawave.sh
+```
+
+If `curl` is missing, install it with your system package manager. On Debian/Ubuntu,
+run `sudo apt-get update` and `sudo apt-get install -y curl ca-certificates`.
+
+The installer asks for an installation directory, Remnawave URL and token,
+Cloudflare token, domains, DNS names, node IPv4 addresses and corresponding panel
+addresses. Multiple domains, records and nodes are supported. Telegram notifications,
+host synchronization using an explicit UUID list, and timezone are configurable.
+Tokens use hidden input.
+
+After a summary, it writes `.env`, `config.yml` and `hosts.yml`, then offers to build
+the local Docker image and start the monitor. On Debian/Ubuntu it can install
+missing Git/Python packages and Docker from the official Docker APT repository after
+confirmation. System package installation needs root or sudo. Conflicting Docker
+packages are never removed automatically. On other Linux distributions, install
+Git, Python 3.9+ and Docker with Compose first. The application container uses Python 3.12.
+
+For an existing checkout:
+
+```bash
+cd remnawave-cloudflare-nodes
+git pull --ff-only
+bash install.sh
+```
+
+On subsequent runs, keep the existing settings or reconfigure. Reconfiguration backs
+up originals to `.installer-backups/`, excluded from Git and the Docker build context.
+Configuration files use mode `600`. Cancelling before saving leaves configuration
+unchanged. A build failure retains the saved configuration for retrying deployment.
+
+To configure only, without installing or starting Docker:
+
+```bash
+python3 scripts/install.py --configure-only
+```
+
+The wizard writes JSON to `.yml` files; JSON is valid YAML and is supported by the
+application. The optional HTTP API remains disabled and can be configured separately.
+Only run one monitor for the same DNS names. Check `docker compose ps` and logs after startup.
+
+### Docker: manual configuration and local build
 
 You need Git, Docker Engine and the Docker Compose plugin on a Linux server.
 Check that `git --version`, `docker --version` and `docker compose version` work.

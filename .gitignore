@@ -212,6 +212,8 @@ docker-compose.override.yml
 .dockerignore.swp
 
 # Application-specific
+.installer-backups/
+.installer-*/
 logs/
 *.log
 config.yml
