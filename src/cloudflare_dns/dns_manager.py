@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, List, Optional, Set
 
 from .client import CloudflareClient
 from ..utils.dns import build_fqdn
@@ -34,10 +34,11 @@ class DNSManager:
     ) -> Set[str]:
         """Synchronize DNS records and return the set of IPs that are actively published."""
         full_domain = build_fqdn(zone_name, domain)
+        # Cloudflare requires Auto TTL for proxied records (API value 1).
+        effective_ttl = 1 if proxied else int(ttl)
 
         existing_records = await self.client.get_dns_records(zone_id, name=full_domain, record_type="A")
         existing_ips = {record["content"] for record in existing_records}
-        existing_by_ip: Dict[str, dict] = {record["content"]: record for record in existing_records}
 
         configured_set = set(configured_ips)
         healthy_configured_ips = configured_set & healthy_ips
@@ -48,18 +49,29 @@ class DNSManager:
 
         for ip in healthy_configured_ips:
             if ip not in existing_ips:
-                if await self._add_record(zone_id, full_domain, domain, zone_name, ip, ttl, proxied):
+                if await self._add_record(zone_id, full_domain, domain, zone_name, ip, effective_ttl, proxied):
                     added_count += 1
 
-        for ip in unhealthy_ips:
-            if ip in existing_by_ip:
-                if await self._remove_record(zone_id, domain, zone_name, ip, existing_by_ip[ip]):
-                    removed_count += 1
-
-        for ip, record in existing_by_ip.items():
-            if ip not in configured_set:
+        for record in existing_records:
+            ip = record["content"]
+            if ip not in healthy_configured_ips:
                 if await self._remove_record(zone_id, domain, zone_name, ip, record):
                     removed_count += 1
+            elif record["ttl"] != effective_ttl or record["proxied"] != proxied:
+                try:
+                    await self.client.update_dns_record(
+                        zone_id=zone_id, record_id=record["id"], name=full_domain,
+                        content=ip, record_type="A", ttl=effective_ttl, proxied=proxied,
+                    )
+                except Exception as e:
+                    self.logger.error(f"{full_domain}: failed to update {ip}: {e}")
+                    if self.notifier and self.notify_errors:
+                        from ..telegram import DNSError
+
+                        self.notifier.notify_dns_error(
+                            DNSError(domain=domain, zone_name=zone_name, ip_address=ip,
+                                     action="update", error_message=str(e))
+                        )
 
         status = f"{len(healthy_configured_ips)}/{len(configured_ips)} online"
 
@@ -69,7 +81,10 @@ class DNSManager:
             else:
                 self.logger.info(f"{full_domain}: {status}")
 
-        return existing_ips | healthy_configured_ips
+        # Read authoritative API state, including writes that may have succeeded
+        # despite a lost response. A failed read must abort host synchronization.
+        published_records = await self.client.get_dns_records(zone_id, name=full_domain, record_type="A")
+        return {record["content"] for record in published_records}
 
     async def _add_record(
             self, zone_id: str, full_domain: str, domain: str, zone_name: str, ip: str, ttl: int, proxied: bool

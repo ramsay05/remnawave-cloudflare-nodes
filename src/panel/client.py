@@ -1,5 +1,4 @@
 from typing import List
-from uuid import UUID
 
 from remnawave.models import (
     NodeResponseDto,
@@ -44,8 +43,7 @@ class RemnawaveClient:
             raise
 
     async def _bulk_hosts_action(self, uuids: List[str], action: str) -> List[HostResponseDto]:
-        """Work around SDK bug: BulkDisable/EnableHostsResponseDto are list subclasses
-        not supported by the rapid client's _handle_response parser."""
+        """Accept v3's empty 204 response and legacy JSON host lists."""
         if not uuids:
             raise ValueError("No host UUIDs provided")
         self.logger.info(f"{action.capitalize()}ing {len(uuids)} hosts")
@@ -60,8 +58,11 @@ class RemnawaveClient:
                     json={"uuids": [str(u) for u in uuids]},
                 )
                 response.raise_for_status()
+                if response.status_code == 204:
+                    self.logger.info(f"Successfully {action}d {len(uuids)} hosts")
+                    return []
                 data = response.json()
-                # The API returns a list of host objects directly
+                # Legacy panels return host objects, directly or wrapped.
                 if isinstance(data, list):
                     hosts_list = [HostResponseDto.model_validate(item) for item in data]
                 elif isinstance(data, dict) and "response" in data:

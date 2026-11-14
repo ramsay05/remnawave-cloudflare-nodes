@@ -38,9 +38,17 @@ Before you begin, ensure you have the following:
 - **Remnawave Panel** with nodes configured
 - **Remnawave API Token** - Generate from your Remnawave panel settings
 - **Cloudflare Account** with DNS zones configured
-- **Cloudflare API Token** - Create with DNS edit permissions
+- **Cloudflare API Token** - Create with Zone:DNS:Edit and Zone:Zone:Read permissions
 
 ## Configuration
+
+Scope the Cloudflare token to the managed zones. `Zone:Zone:Read` is required
+for automatic zone discovery; `Zone:DNS:Edit` allows listing and modifying DNS records.
+
+Existing A records are reconciled for TTL and proxy status on each cycle.
+For proxied records, TTL is forced to Auto (`1` in the API, currently 300 seconds).
+For DNS-only records, use Auto or 60–86400 seconds (30–59 requires Enterprise).
+See [API compatibility and local tests](docs/API-COMPATIBILITY.md).
 
 Copy [`.env.example`](.env.example) to `.env` and fill in your values:
 
@@ -49,7 +57,7 @@ Copy [`.env.example`](.env.example) to `.env` and fill in your values:
 REMNAWAVE_API_URL=https://panel.example.com
 REMNAWAVE_API_KEY=remnawave_api_key
 
-# Cloudflare token with DNS edit permissions
+# Cloudflare token with Zone:DNS:Edit and Zone:Zone:Read permissions
 CLOUDFLARE_API_TOKEN=cloudflare_api_token
 
 # API
@@ -185,7 +193,7 @@ Both formats can be mixed within the same zone or across different zones.
 |--------------------------------|------------------------------------------------|---------------------|------------------|
 | `REMNAWAVE_API_URL`            | Remnawave API endpoint                         | -                   | Yes              |
 | `REMNAWAVE_API_KEY`            | Remnawave API token                            | -                   | Yes              |
-| `CLOUDFLARE_API_TOKEN`         | Cloudflare API token with DNS edit permissions | -                   | Yes              |
+| `CLOUDFLARE_API_TOKEN`         | Cloudflare API token with Zone:DNS:Edit and Zone:Zone:Read permissions | -                   | Yes              |
 | `LOG_LEVEL`                    | Log level (`DEBUG` `INFO` `WARNING` `ERROR`)   | `INFO`              | No               |
 | `API_ENABLED`                  | Enable the HTTP API server                     | `false`             | No               |
 | `API_HOST`                     | Address to bind the API server                 | `0.0.0.0`           | No               |

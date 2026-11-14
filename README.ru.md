@@ -37,9 +37,17 @@ Remnawave (https://docs.rw).
 - **Remnawave Panel** с добавленными нодами
 - **Remnawave API Token** - генерируется в настройках панели
 - **Cloudflare** с настроенными DNS-зонами
-- **Cloudflare API Token** - с правами на редактирование DNS
+- **Cloudflare API Token** - с правами Zone:DNS:Edit и Zone:Zone:Read
 
 ## Настройка
+
+Ограничьте токен Cloudflare управляемыми зонами. `Zone:Zone:Read` нужен для
+автоопределения Zone ID, а `Zone:DNS:Edit` — для чтения и изменения DNS-записей.
+
+TTL и статус проксирования существующих A-записей синхронизируются в каждом цикле.
+При `proxied: true` используется Auto TTL (`1` в API, сейчас 300 секунд).
+Для DNS-only укажите Auto или 60–86400 секунд (30–59 доступны на Enterprise).
+Подробности: [совместимость API и локальные тесты](docs/API-COMPATIBILITY.md).
 
 Скопируйте [`.env.example`](.env.example) в `.env`:
 
@@ -48,7 +56,7 @@ Remnawave (https://docs.rw).
 REMNAWAVE_API_URL=https://panel.example.com
 REMNAWAVE_API_KEY=remnawave_api_key
 
-# Cloudflare (токен с правами DNS Edit)
+# Cloudflare (токен с правами Zone:DNS:Edit и Zone:Zone:Read для управляемых зон)
 CLOUDFLARE_API_TOKEN=cloudflare_api_token
 
 # API
@@ -181,7 +189,7 @@ zones:
 |--------------------------------|--------------------------------------------------|---------------------|--------------------|
 | `REMNAWAVE_API_URL`            | Адрес панели Remnawave                           | -                   | Да                 |
 | `REMNAWAVE_API_KEY`            | API токен Remnawave                              | -                   | Да                 |
-| `CLOUDFLARE_API_TOKEN`         | API токен Cloudflare (DNS Edit)                  | -                   | Да                 |
+| `CLOUDFLARE_API_TOKEN`         | API токен Cloudflare (Zone:DNS:Edit и Zone:Zone:Read)                  | -                   | Да                 |
 | `LOG_LEVEL`                    | Уровень логов (`DEBUG` `INFO` `WARNING` `ERROR`) | `INFO`              | Нет                |
 | `API_ENABLED`                  | Включить HTTP API                                | `false`             | Нет                |
 | `API_HOST`                     | Адрес привязки API-сервера                       | `0.0.0.0`           | Нет                |

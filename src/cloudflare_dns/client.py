@@ -105,7 +105,7 @@ class CloudflareClient:
         while True:
             try:
                 await self._rate_limit()
-                record = await self.cf.dns.records.update(  # type: ignore[call-overload]
+                record = await self.cf.dns.records.edit(  # type: ignore[call-overload]
                     dns_record_id=record_id,
                     zone_id=zone_id,
                     type=record_type,
